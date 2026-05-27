@@ -1,0 +1,38 @@
+{
+  "name": "@fullmention/mcp-server",
+  "version": "0.1.4",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "fullmention-mcp": "dist/index.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/riisager/fullmention-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/riisager/fullmention-mcp/issues"
+  },
+  "homepage": "https://github.com/riisager/fullmention-mcp#readme",
+  "scripts": {
+    "build": "tsc -b && esbuild src/index.ts --bundle --platform=node --format=cjs --banner:js=\"#!/usr/bin/env node\" --outfile=dist/index.cjs",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.cjs"
+  },
+  "dependencies": {
+    "@fullmention/config": "^0.1.0",
+    "@fullmention/schemas": "^0.1.0",
+    "@fullmention/utils": "^0.1.0",
+    "@hono/node-server": "^1.19.14",
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "dotenv": "^17.4.2",
+    "hono": "^4.12.23",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
