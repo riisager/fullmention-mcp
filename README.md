@@ -133,8 +133,8 @@ Trigger an asynchronous stateless simulation run.
 * **Parameters:**
   * `keywords` *(array of strings, required)*: List of keywords to simulate (maximum 500).
   * `engines` *(array of strings, required)*: AI search engines to target (e.g. `["openai", "openai-mini", "gemini"]`).
-  * `countryCode` *(string, required)*: Country context (e.g., `"Denmark"` or `"United States"`).
-  * `languageCode` *(string, required)*: Language context (e.g., `"Danish"` or `"English"`).
+  * `country` *(string, required)*: Country context (e.g., `"Denmark"` or `"United States"`).
+  * `language` *(string, required)*: Language context (e.g., `"Danish"` or `"English"`).
   * `location` *(string, optional, nullable)*: Optional specific city context (e.g., `"Copenhagen"`).
   * `fanout` *(boolean, optional)*: Enable web search fanout (adds 1 credit cost per keyword).
   * `webhookUrl` *(string, optional, nullable)*: Optional fully qualified HTTP/S URL to call back when the run finishes.
