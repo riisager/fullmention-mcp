@@ -14,6 +14,7 @@ import { loadRuntimeConfig } from "@fullmention/config";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AsyncLocalStorage } from "async_hooks";
+import { randomUUID } from "crypto";
 
 export const apiKeyStorage = new AsyncLocalStorage<string>();
 
@@ -152,8 +153,8 @@ const GetQuotaInput = z.object({
 const TriggerRunInput = z.object({
   keywords: z.array(z.string().min(1).max(200)).min(1).max(500).describe("List of keywords to analyze (maximum 500)."),
   engines: z.array(z.enum(["openai", "openai-mini", "gemini"])).min(1).describe("AI search engines to target."),
-  countryCode: z.string().min(1).max(100).describe("Country context (e.g. 'Denmark' or 'United States')."),
-  languageCode: z.string().min(1).max(100).describe("Language context (e.g. 'Danish' or 'English')."),
+  country: z.string().min(1).max(100).describe("Country context (e.g. 'Denmark' or 'United States')."),
+  language: z.string().min(1).max(100).describe("Language context (e.g. 'Danish' or 'English')."),
   location: z.string().max(120).optional().nullable().describe("Optional specific city or location context, e.g. 'Copenhagen'."),
   fanout: z.boolean().default(false).optional().describe("Whether to perform web search fanout (+1 credit cost per keyword)."),
   webhookUrl: z.string().url().optional().nullable().describe("Optional fully qualified HTTP/S URL called back when run finishes."),
@@ -225,7 +226,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "get_run_status",
-        description: "Retrieves details, progress, and results of an active asynchronous run using runId.",
+        description: "Retrieves details, progress, and results of an active asynchronous run using runId. The status field in response can be 'queued', 'processing', 'success' (completed successfully), or 'failed' (completed with failure). Poll until status is 'success' or 'failed'.",
         inputSchema: toMcpSchema(GetRunStatusInput),
       },
       {
@@ -259,7 +260,7 @@ function formatResults(data: any, format: "compact" | "raw" | "markdown"): any {
 
     for (const res of results) {
       md += `### Keyword: **${res.keyword}** (${res.engine})\n`;
-      md += `* Country/Language/Location: ${res.countryCode} / ${res.languageCode} / ${res.location || "National"}\n`;
+      md += `* Country/Language/Location: ${res.country} / ${res.language} / ${res.location || "National"}\n`;
       md += `* Description: ${res.description || "-"}\n`;
       md += `* Categories: ${res.categorySuggestions?.join(", ") || "-"}\n`;
       md += `* Sources: ${res.fanout?.totalSourcesFound ?? 0} found via ${res.fanout?.queryCount ?? 0} AI search queries.\n\n`;
@@ -309,8 +310,8 @@ function formatResults(data: any, format: "compact" | "raw" | "markdown"): any {
     results: results.map((res: any) => ({
       id: res.id,
       keyword: res.keyword,
-      countryCode: res.countryCode,
-      languageCode: res.languageCode,
+      country: res.country,
+      language: res.language,
       location: res.location,
       engine: res.engine,
       description: res.description,
@@ -376,6 +377,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === "trigger_run") {
       const { idempotencyKey, fanout, ...runParams } = args;
+      const effectiveIdempotencyKey = (idempotencyKey as string) || randomUUID();
       const data = await callApi({
         path: "/runs",
         method: "POST",
@@ -383,7 +385,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ...runParams,
           options: { fanout: fanout ?? false }
         },
-        idempotencyKey: idempotencyKey as string,
+        idempotencyKey: effectiveIdempotencyKey,
       });
       queryCache.clear();
       serverMetrics.runsTriggered++;
@@ -582,15 +584,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     throw new Error(`Unknown or unregistered tool: ${name}`);
   } catch (error: any) {
-    const errorMsg = error.message.includes("https://api.fullmention.com/docs/")
-      ? error.message
-      : `${error.message}. Refer to the API documentation at https://api.fullmention.com/docs/ for details.`;
+    let errorCode = "execution_error";
+    let message = error.message;
+
+    const codeMatch = error.message.match(/^\[([a-zA-Z0-9_]+)\]\s*(.*)/);
+    if (codeMatch) {
+      errorCode = codeMatch[1];
+      message = codeMatch[2];
+    }
+
+    if (!message.includes("https://api.fullmention.com/docs/")) {
+      message = `${message}. Refer to the API documentation at https://api.fullmention.com/docs/ for details.`;
+    }
+
+    const errorResponse = {
+      error: {
+        tool: name,
+        code: errorCode,
+        message,
+        docs: "https://api.fullmention.com/docs/"
+      }
+    };
+
     return {
       isError: true,
       content: [
         {
           type: "text",
-          text: `Error during execution of tool '${name}': ${errorMsg}`,
+          text: JSON.stringify(errorResponse, null, 2),
         },
       ],
     };
